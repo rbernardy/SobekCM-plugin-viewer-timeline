@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+//using System.Collections.Generic;
 using System.IO;
 using SobekCM.Core.BriefItem;
 using SobekCM.Core.FileSystems;
@@ -7,15 +7,19 @@ using SobekCM.Core.Navigation;
 using SobekCM.Core.Users;
 using SobekCM.Library.ItemViewer.Viewers;
 using SobekCM.Tools;
-using SobekCM.Engine_Library.Endpoints;
-using System.Xml;
-using System.Web;
-using System.Text;
+//using SobekCM.Engine_Library.Endpoints;
+//using System.Xml;
+//using System.Web;
+//using System.Text;
+using SobekCM.Resource_Object;
 
 namespace TIMELINE
 {
-    public class TIMELINE_ItemViewer : abstractNoPaginationItemViewer
+    public class TIMELINE_ItemViewer : abstractNoPaginationItemViewer, IBriefItemMapper
     {
+        public TIMELINE_Info timelineInfo;
+        SobekCM_Item originalItem;
+
         /// <summary> Constructor for a new instance of the TIMELINE_ItemViewer class, used to display a timeline </summary>
         /// <param name="BriefItem"> Digital resource object </param>
         /// <param name="CurrentUser"> Current user, who may or may not be logged on </param>
@@ -31,6 +35,14 @@ namespace TIMELINE
         public override void Add_Main_Viewer_Section(System.Web.UI.WebControls.PlaceHolder MainPlaceHolder, Custom_Tracer Tracer)
         {
             // do nothing
+        }
+
+        public bool MapToBriefItem(SobekCM_Item Original, BriefItemInfo New)
+        {
+            timelineInfo = Original.Get_Metadata_Module("TimelineCore") as TIMELINE_Info;
+            originalItem = Original;
+            
+            return false;
         }
 
         public override void Write_Main_Viewer_Section(TextWriter Output, Custom_Tracer Tracer)
@@ -50,11 +62,12 @@ namespace TIMELINE
             Output.WriteLine("      <div id='timeline-embed' style='width:100%; height:100%;'></div>");
 
             //Output.WriteLine("<p>There are " + BriefItem.Description.Count + " elements in the description.</p>");
+            
+            // originally getting data from BriefItem.Description
 
+            /*
             List<BriefItem_DescriptiveTerm> bidt = BriefItem.Description;
-
             BriefItem_DescriptiveTerm dt = bidt.Find(x => x.Term.Equals("Resource Identifier"));
-
             String tlsn="N/A";
 
             foreach (BriefItem_DescTermValue dtv in dt.Values)
@@ -73,20 +86,36 @@ namespace TIMELINE
             String myurl = "http://digital.lib.usf.edu/engine/search/results/xml?t=" + tlsn;
 
             //Output.WriteLine("<p>myurl=[" + myurl + "].</p>");
-            String data;
-            String json;
+            //String data;
 
+            */
+
+            String json=null;
+            //Boolean hasHome = false;
+            String tlsn;
+         
+            // construct home entry from briefitem
+            
+            // later - adjust - get url from first image in item
             json = "{\"title\":{\"media\":{\"url\":\"http://digital.lib.usf.edu/content/SF/S0/03/63/40/00001/J12-00053.jpg\",";
-            json += "\"caption\":\"Blah blah blah\",";
-            json += "\"credit\":\"Copyright 2016\"},";
+            
+            // later - decide which field to use to get home caption
+            json += "\"caption\":\"" + "No caption" + "\",";
+
+            // later - decide which field to use to get credit
+            json += "\"credit\":\"" + "No credit" + "\"},";
             json += "\"text\":{";
-            json += "\"headline\":\"This is my timeline\",";
-            json += "\"text\":\"Nam porttitor purus eget tempor egestas. Donec laoreet bibendum ante sed fermentum. Maecenas ut scelerisque.\"";
+            json += "\"headline\":\"" + BriefItem.Title + "\",";
+            json += "\"text\":\"" + BriefItem.Description + "\"";
             json += "}},";
+            
             json += "\"events\":[";
 
             try
             {
+                // original population by results xml
+
+                /*
                 System.Net.WebClient wc = new System.Net.WebClient();
                 byte[] raw = wc.DownloadData(myurl);
                 data = System.Text.Encoding.UTF8.GetString(raw);
@@ -148,26 +177,35 @@ namespace TIMELINE
                     String mycaption = "No caption";
                     String credit = doc.SelectSingleNode("//item/description/descriptiveTerm[@term='Rights Management']/properties/property/@value").Value.ToString();
 
+                    */
+
+                String mediaURL = null;
+      
+                foreach (TIMELINE_Entry_Info entry in timelineInfo.Entries)
+                {
+                    // to add - need to see original item and check for override from entry
+                    // get SobekCM_Item via entry.Entry_BibID & entry.Entry_VID
+
                     json += "{";
 
                     json += "\"media\":{";
-                    json+="\"url\":\"" + mediaURL + "\",";
-                    json += "\"caption\":\"" + mycaption + "\",";
-                    json += "\"credit\":\"" + credit + "\"";
+                    json += "\"url\":\"" + mediaURL + "\",";
+                    json += "\"caption\":\"" + entry.Entry_Caption + "\",";
+                    json += "\"credit\":\"" + entry.Entry_Credit + "\"";
                     json += "},";
 
-                    mymonth++;
-                    myday= rand.Next(1, 28);
-                    
+                    //mymonth++;
+                    //myday = rand.Next(1, 28);
+
                     json += "\"start_date\":{";
-                    json +="\"month\":\"" + mymonth + "\",";
-                    json += "\"day\":\"" + myday + "\",";
-                    json += "\"year\":\"" + myyear + "\"";
+                    json += "\"month\":\"" + entry.Entry_Month + "\",";
+                    json += "\"day\":\"" + entry.Entry_Day + "\",";
+                    json += "\"year\":\"" + entry.Entry_Year + "\"";
                     json += "},";
 
                     json += "\"text\":{";
-                    json += "\"headline\":\"" + mytitle + "\",";
-                    json += "\"text\":\"" + myabstract + "\"";
+                    json += "\"headline\":\"" + entry.Entry_Title + "\",";
+                    json += "\"text\":\"" + entry.Entry_Maintext + "\"";
                     json += "}},";
                 }
 
@@ -179,7 +217,10 @@ namespace TIMELINE
                 Output.WriteLine("<p>Error : " + e.Message + " [" + e.StackTrace + "].</p>");
             }
 
+            // store a copy locally for inspection
             File.WriteAllText(@"C:\Users\" + Environment.UserName + @"\Dropbox\timeline.json", json);
+
+            tlsn = originalItem.BibID + "_" + originalItem.VID;
             File.WriteAllText(@"C:\inetpub\wwwroot\temp\" + tlsn + ".json", json);
             /*
             foreach (BriefItem_DescriptiveTerm mydt in bidt)
@@ -195,6 +236,7 @@ namespace TIMELINE
             }
             */
 
+            /*
             if (tlsn == "N/A")
             {
                 // if no timeline set # in an identifier use the default (USF History)
@@ -203,6 +245,7 @@ namespace TIMELINE
                 Output.WriteLine("       </script>");
             }
             else
+            */
             {
                 Output.WriteLine("      <script type=\"text/javascript\">\r\n");
                 //Output.WriteLine("          var myjson='" + json.Replace("'","''") + "';");
